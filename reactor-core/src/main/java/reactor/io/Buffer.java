@@ -1333,8 +1333,8 @@ public class Buffer implements Recyclable,
 
 	private synchronized void ensureCapacity(int atLeast) {
 		if(null == buffer) {
-			buffer = ByteBuffer.allocate(SMALL_BUFFER_SIZE);
-			return;
+            buffer = ByteBuffer.allocate(Math.max(atLeast, SMALL_BUFFER_SIZE));
+            return;
 		}
 		int pos = buffer.position();
 		int cap = buffer.capacity();
@@ -1345,12 +1345,15 @@ public class Buffer implements Recyclable,
 					expand();
 					cap = buffer.capacity();
 				}
-				buffer.limit(Math.min(pos + atLeast, cap));
 			} else {
 				expand();
-			}
-		} else if(pos + SMALL_BUFFER_SIZE > MAX_BUFFER_SIZE) {
-			throw new BufferOverflowException();
+                cap = buffer.capacity();
+            }
+            // We set the new limit (for the original buffer with remaining capacity
+            // or for the new buffer created with expand() )
+            buffer.limit(Math.min(pos + atLeast, cap));
+        } else if (pos + SMALL_BUFFER_SIZE > MAX_BUFFER_SIZE) {
+            throw new BufferOverflowException();
 		}
 	}
 
