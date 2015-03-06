@@ -644,7 +644,7 @@ public class Buffer implements Recyclable,
 	 * @return {@literal this}
 	 */
 	public Buffer append(String s) {
-		ensureCapacity(s.length());
+		ensureCapacity(position() + s.length());
 		buffer.put(s.getBytes());
 		return this;
 	}
@@ -658,7 +658,7 @@ public class Buffer implements Recyclable,
 	 * @return {@literal this}
 	 */
 	public Buffer append(short s) {
-		ensureCapacity(2);
+		ensureCapacity(position() + 2);
 		buffer.putShort(s);
 		return this;
 	}
@@ -672,7 +672,7 @@ public class Buffer implements Recyclable,
 	 * @return {@literal this}
 	 */
 	public Buffer append(int i) {
-		ensureCapacity(4);
+		ensureCapacity(position() + 4);
 		buffer.putInt(i);
 		return this;
 	}
@@ -686,7 +686,7 @@ public class Buffer implements Recyclable,
 	 * @return {@literal this}
 	 */
 	public Buffer append(long l) {
-		ensureCapacity(8);
+		ensureCapacity(position() + 8);
 		buffer.putLong(l);
 		return this;
 	}
@@ -700,7 +700,7 @@ public class Buffer implements Recyclable,
 	 * @return {@literal this}
 	 */
 	public Buffer append(char c) {
-		ensureCapacity(2);
+		ensureCapacity(position() + 2);
 		buffer.putChar(c);
 		return this;
 	}
@@ -715,7 +715,7 @@ public class Buffer implements Recyclable,
 	 */
 	public Buffer append(ByteBuffer... buffers) {
 		for(ByteBuffer bb : buffers) {
-			ensureCapacity(bb.remaining());
+			ensureCapacity(position() + bb.remaining());
 			buffer.put(bb);
 		}
 		return this;
@@ -733,7 +733,7 @@ public class Buffer implements Recyclable,
 		for(Buffer b : buffers) {
 			int pos = (null == buffer ? 0 : buffer.position());
 			int len = b.remaining();
-			ensureCapacity(len);
+			ensureCapacity(pos + len);
 			buffer.put(b.byteBuffer());
 			buffer.position(pos + len);
 		}
@@ -749,7 +749,7 @@ public class Buffer implements Recyclable,
 	 * @return {@literal this}
 	 */
 	public Buffer append(byte b) {
-		ensureCapacity(1);
+		ensureCapacity(position() + 1);
 		buffer.put(b);
 		return this;
 	}
@@ -763,7 +763,7 @@ public class Buffer implements Recyclable,
 	 * @return {@literal this}
 	 */
 	public Buffer append(byte[] b) {
-		ensureCapacity(b.length);
+		ensureCapacity(position() + b.length);
 		buffer.put(b);
 		return this;
 	}
@@ -783,7 +783,7 @@ public class Buffer implements Recyclable,
 	 * @return {@literal this}
 	 */
 	public Buffer append(byte[] b, int start, int len) {
-		ensureCapacity(b.length);
+		ensureCapacity(position() + b.length);
 		buffer.put(b, start, len);
 		return this;
 	}
@@ -1333,8 +1333,8 @@ public class Buffer implements Recyclable,
 
 	private synchronized void ensureCapacity(int atLeast) {
 		if(null == buffer) {
-			buffer = ByteBuffer.allocate(SMALL_BUFFER_SIZE);
-			return;
+            buffer = ByteBuffer.allocate(Math.max(atLeast, SMALL_BUFFER_SIZE));
+            return;
 		}
 		int pos = buffer.position();
 		int cap = buffer.capacity();
@@ -1342,27 +1342,34 @@ public class Buffer implements Recyclable,
 			if(buffer.limit() < cap) {
 				// there's remaining capacity that hasn't been used yet
 				if(pos + atLeast > cap) {
-					expand();
+					expand(atLeast - buffer.limit());
 					cap = buffer.capacity();
 				}
-				buffer.limit(Math.min(pos + atLeast, cap));
 			} else {
-				expand();
-			}
-		} else if(pos + SMALL_BUFFER_SIZE > MAX_BUFFER_SIZE) {
-			throw new BufferOverflowException();
+				expand(atLeast - cap);
+                cap = buffer.capacity();
+            }
+            // We set the new limit (for the original buffer with remaining capacity
+            // or for the new buffer created with expand() )
+            buffer.limit(Math.min(pos + atLeast, cap));
+        } else if (pos + SMALL_BUFFER_SIZE > MAX_BUFFER_SIZE) {
+            throw new BufferOverflowException();
 		}
 	}
 
-	private void expand() {
+	private void expand(int expandSize) {
 		snapshot();
 		ByteBuffer newBuff = (buffer.isDirect()
-		                      ? ByteBuffer.allocateDirect(buffer.limit() + SMALL_BUFFER_SIZE)
-		                      : ByteBuffer.allocate(buffer.limit() + SMALL_BUFFER_SIZE));
+		                      ? ByteBuffer.allocateDirect(buffer.limit() + expandSize)
+		                      : ByteBuffer.allocate(buffer.limit() + expandSize));
 		buffer.flip();
 		newBuff.put(buffer);
 		buffer = newBuff;
 		reset();
+	}
+
+	private void expand() {
+		expand(SMALL_BUFFER_SIZE);
 	}
 
 	private String decode() {
