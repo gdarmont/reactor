@@ -416,15 +416,37 @@ class BufferSpec extends Specification {
 		pos == -1
 	}
 
+    def "A dynamic Buffer with no initial size can be expanded"() {
+   		given: "A dynamic Buffer without param"
+   		def buffer = new Buffer()
+        def originalCapacity = buffer.capacity()
+
+        when: "the Buffer is appended with 30 bytes"
+        int dataSize = 30
+        buffer.append(new byte[dataSize])
+
+        then: "the capacity has not changed"
+        buffer.capacity() == originalCapacity
+        buffer.position() == dataSize
+
+   		when: "the Buffer is appended with 16 kb minus 40 bytes (to fool limit)"
+        dataSize = 16 * 1024 - 40
+        buffer.append(new byte[dataSize])
+
+        then: "the capacity has not changed"
+        buffer.capacity() == originalCapacity
+   	}
+
+
     def "A dynamic Buffer can be expanded"() {
-   		given: "A dynamic Buffer starting with 32 ko"
+   		given: "A dynamic Buffer starting with 32 kb"
         def originalCapacity = 32 * 1024
    		def buffer = new Buffer(originalCapacity, false)
 
         expect: "the capacity is equals to originalCapacity"
         buffer.capacity() == originalCapacity
 
-        when: "the Buffer is appended with 4 ko"
+        when: "the Buffer is appended with 4 kb"
         int dataSize = 4 * 1024
         buffer.append(new byte[dataSize])
 
@@ -432,7 +454,7 @@ class BufferSpec extends Specification {
         buffer.capacity() == originalCapacity
         buffer.position() == dataSize
 
-   		when: "the Buffer is appended with 64 ko"
+   		when: "the Buffer is appended with 64 kb"
         dataSize = 64 * 1024
         buffer.append(new byte[dataSize])
 
@@ -441,10 +463,10 @@ class BufferSpec extends Specification {
    	}
 
     def "A fixed Buffer cannot be expanded"() {
-   		given: "A fixed Buffer with 8 ko"
+   		given: "A fixed Buffer with 8 kb"
    			def buffer = new Buffer(8 * 1024, true)
 
-   		when: "the Buffer is appended with 24 ko"
+   		when: "the Buffer is appended with 24 kb"
         int dataSize = 24 * 1024
         buffer.append(new byte[dataSize])
 

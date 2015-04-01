@@ -1331,6 +1331,10 @@ public class Buffer implements Recyclable,
 		return (null != buffer ? this.buffer.compareTo(buffer.buffer) : -1);
 	}
 
+    /**
+     * This methods ensures that the capacity of the buffer is at least the 'atLeast' param size.
+     * @param atLeast
+     */
 	private synchronized void ensureCapacity(int atLeast) {
 		if(null == buffer) {
             buffer = ByteBuffer.allocate(Math.max(atLeast, SMALL_BUFFER_SIZE));
@@ -1338,20 +1342,13 @@ public class Buffer implements Recyclable,
 		}
 		int pos = buffer.position();
 		int cap = buffer.capacity();
-		if(dynamic && buffer.remaining() < atLeast) {
-			if(buffer.limit() < cap) {
-				// there's remaining capacity that hasn't been used yet
-				if(pos + atLeast > cap) {
-					expand(atLeast - buffer.limit());
-					cap = buffer.capacity();
-				}
-			} else {
-				expand(atLeast - cap);
-                cap = buffer.capacity();
+		if(dynamic) {
+            if (cap < atLeast) {
+                expand(atLeast - cap);
             }
             // We set the new limit (for the original buffer with remaining capacity
             // or for the new buffer created with expand() )
-            buffer.limit(Math.min(pos + atLeast, cap));
+            buffer.limit(Math.max(atLeast, buffer.limit()));
         } else if (pos + SMALL_BUFFER_SIZE > MAX_BUFFER_SIZE) {
             throw new BufferOverflowException();
 		}
@@ -1360,8 +1357,8 @@ public class Buffer implements Recyclable,
 	private void expand(int expandSize) {
 		snapshot();
 		ByteBuffer newBuff = (buffer.isDirect()
-		                      ? ByteBuffer.allocateDirect(buffer.limit() + expandSize)
-		                      : ByteBuffer.allocate(buffer.limit() + expandSize));
+		                      ? ByteBuffer.allocateDirect(buffer.capacity() + expandSize)
+		                      : ByteBuffer.allocate(buffer.capacity() + expandSize));
 		buffer.flip();
 		newBuff.put(buffer);
 		buffer = newBuff;
@@ -1407,7 +1404,7 @@ public class Buffer implements Recyclable,
 
 		int len = buffer.remaining();
 		int pos = buffer.position();
-		ensureCapacity(right + len);
+		ensureCapacity(pos + right + len);
 
 		buffer.position(pos + right);
 		buffer.put(currentBuffer);
